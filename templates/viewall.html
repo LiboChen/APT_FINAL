@@ -12,8 +12,7 @@
 </head>
 
 <body>
-<h3>View All Streams</h3>
-<br>
+<h3>Friends</h3>
 {#<!--<div class="row">-->#}
 {##}
 {#    <!--{% for url in image_url %}-->#}
@@ -22,12 +21,22 @@
 {#    <!--{% endfor %}-->#}
 {#<!--</div>-->#}
 
+  <p>
+  <form action="/view" method="post">
+      <label for="query"> Add New Friend: </label>
+      <input type="text" class="txt" name="query" id="_query">
+      <button class="btn btn-default" type="submit">Add</button>
+      <input type="hidden" name="user_id" value="{{ user_id }}">
+  </form>
+  </p>
+
 
 <div class="container">
     {% for url in image_url %}
         <span class="col-sm-4 col-xs-6">
-        <a href=/view_single?stream_id={{url[1]}}>
+        <a href=/view_user?user_id={{url[1]}}>
            <img src="{{ url[0] }}" class = "img-thumbnail"/>
+            <h6> {{ url[1] }} </h6>
         </a>
         </span>
     {% endfor %}

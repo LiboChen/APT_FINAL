@@ -21,10 +21,11 @@ import urllib
 import re
 import logging
 
-from data_class import Stream, StreamInfo, ShowStream, Image
+from data_class import Stream, StreamInfo, ShowStream, Image, User
 from datetime import datetime
 from google.appengine.api import users
 from google.appengine.api import images
+from random import randrange
 
 from google.appengine.api import mail
 from google.appengine.api import urlfetch
@@ -45,6 +46,7 @@ SERVICES_URL = 'http://apt-final-project-test.appspot.com/'
 
 
 default_preface = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3DFxGhXSmn0MHjbEEtw-0N9sDKhyIP7tM_r3Wo1mY7WhY2xvZ"
+default_photo = "http://www.wikihow.com/images/f/ff/Draw-a-Cute-Cartoon-Person-Step-14.jpg"
 JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader('templates'),
     extensions=['jinja2.ext.autoescape'],
@@ -123,6 +125,7 @@ class UploadImageHandler(webapp2.RequestHandler):
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
+        print "aaaaaaaaa"
         user = users.get_current_user()
         if user:
             url = users.create_logout_url(self.request.uri)
@@ -141,18 +144,35 @@ class MainPage(webapp2.RequestHandler):
             'url_linktext': url_linktext,
         }
 
+        #add user to user pool
+        user = str(users.get_current_user()).lower()
+        exist = False
+        people = User.query(User.user_id != '').fetch()
+        print 'current user is ', user
+        for person in people:
+            print "already users are ", person.user_id
+            if person.user_id == user:
+                exist = True
+
+        if not exist:
+            new_user = User(user_id=user)
+            new_user.put()
+        print "add user into user pool"
+
         template = JINJA_ENVIRONMENT.get_template('index.html')
         self.response.write(template.render(template_values))
 
 
 class LoginHandler(webapp2.RequestHandler):
     def get(self):
+        print "bbbbbbbbbb"
         user = str(users.get_current_user()).lower()
         if user:
             self.response.headers['Content-Type'] = 'text/html; charset=utf-8'
             self.response.write('Hello, ' + user.nickname())
         else:
             self.redirect(users.create_login_url(self.request.uri))
+
         self.redirect('/manage')
 
 
@@ -233,6 +253,9 @@ class CreateHandler(webapp2.RequestHandler):
         print 'creating stream now'
         user = str(users.get_current_user()).lower()
         stream_id = self.request.get('stream_id')
+        latitude = self.request.get('latitude')
+        longitude = self.request.get('longitude')
+
         print 'first', stream_id
         streams = Stream.query(Stream.stream_id != '').fetch()
         for stream in streams:
@@ -256,6 +279,8 @@ class CreateHandler(webapp2.RequestHandler):
                 'cover_url': self.request.get('cover_url'),
                 'owner': str(users.get_current_user()).lower(),
                 'views': 0,
+                'latitude': latitude,
+                'longitude': longitude,
                 }
 
         print "aaaaaaa"
@@ -454,26 +479,70 @@ class ViewStreamHandler(webapp2.RequestHandler):
         else:
             self.redirect('/manage')
 
+
+class ViewUserHandler(webapp2.RequestHandler):
+    def get(self):
+        user = self.request.get('user_id')
+        print 'user is ', user
+        subscribed_streams = []
+        qry = StreamInfo.query_stream(ndb.Key('User', str(user))).fetch()
+        if len(qry) > 0:
+            for key in qry[0].subscribed:
+                subscribed_streams.append(key.get())
+
+        print subscribed_streams
+
+        streams = Stream.query(Stream.stream_id != '').fetch()
+        image_url = []
+        for stream in streams:
+            #print stream.stream_id
+            #print user
+            if stream.user_id == user:
+                if stream.cover_url:
+                    image_url.append([stream.cover_url, stream.stream_id])
+                else:
+                    image_url.append([default_preface, stream.stream_id])
+
+
+        template_values = {
+            'nav_links': USER_NAV_LINKS,
+            'path': os.path.basename(self.request.path).capitalize(),
+            'user_id': str(users.get_current_user()).lower(),
+            'user_streams': Stream.query(Stream.owner == str(user)).fetch(),
+            'subscribed_streams': subscribed_streams,
+            'usr': user,
+            'image_url': image_url,
+        }
+
+        template = JINJA_ENVIRONMENT.get_template('viewuser.html')
+        self.response.write(template.render(template_values))
+
+
+
 class ViewImageHandler(webapp2.RequestHandler):
     def get(self):
         img = db.get(self.request.get('image_id'))
         self.response.out.write(img.image)
 # get the whole image object
+
 class ViewImageObjectHandler(webapp2.RequestHandler):
     def get(self):
         img = db.get(self.request.get('image_id'))
         self.response.out.write(img)
 
-class ViewAllHandler(webapp2.RequestHandler):
+
+class ViewAllFriendHandler(webapp2.RequestHandler):
     def get(self):
-        streams = Stream.query(Stream.stream_id != '').fetch()
-        print type(streams)
+        print 'showing friends'
+        user = str(users.get_current_user()).lower()
+        cur_user = User.query(User.user_id == user).fetch()[0]
         image_url = []
-        for stream in streams:
-            if stream.cover_url:
-                image_url.append([stream.cover_url, stream.stream_id])
+        for friend in cur_user.friends:
+            friend_object = User.query(User.user_id == friend).fetch()[0]
+            if friend_object.photo:
+                image_url.append([friend_object.photo, friend_object.user_id])
             else:
-                image_url.append([default_preface, stream.stream_id])
+                image_url.append([default_photo, friend_object.user_id])
 
         template_values = {
             'nav_links': USER_NAV_LINKS,
@@ -484,6 +553,40 @@ class ViewAllHandler(webapp2.RequestHandler):
 
         template = JINJA_ENVIRONMENT.get_template('viewall.html')
         self.response.write(template.render(template_values))
+
+
+    def post(self):
+        print "i am adding friend "
+        pattern = self.request.get('query')
+        print "add friend query is ", pattern
+
+        user = str(users.get_current_user()).lower()
+        me = User.query(User.user_id == user).fetch()[0]
+
+        people = User.query(User.user_id != '').fetch()
+
+        exist = False
+        if pattern:
+            for person in people:
+                if person.user_id == pattern:
+                    exist = True
+                    print "exiting is true..."
+                    #add to my friend list
+                    is_friend = False
+                    for my_friend in me.friends:
+                        if my_friend == pattern:
+                            is_friend = True
+
+                    if not is_friend:
+                        print "is adding friends"
+                        me.friends.append(pattern)
+
+        if not exist:
+            print "not existing"
+
+        me.put()
+        self.redirect('/view')
+
 
 class GeoMapHandler(webapp2.RequestHandler):
     def get(self):
@@ -498,6 +601,7 @@ class GeoMapHandler(webapp2.RequestHandler):
 
         template = JINJA_ENVIRONMENT.get_template('geomap.html')
         self.response.write(template.render(template_values))
+
 
 class ViewMoreHandler(webapp2.RequestHandler):
     def get(self):
@@ -567,7 +671,7 @@ class SearchHandler(webapp2.RequestHandler):
         search_result = []
         if pattern:
             for stream in all_streams:
-                if pattern in stream.tags:
+                if pattern in stream.stream_id:
                     stream_id = stream.stream_id
                     if stream.cover_url != '':
                         image_url = stream.cover_url
@@ -588,9 +692,27 @@ class SearchHandler(webapp2.RequestHandler):
         self.response.write(template.render(template_values))
 
     def post(self):
-        print "seraching "
+        print "searching "
         info = {'qry': self.request.get('query')}
         self.redirect('/search?'+urllib.urlencode(info))
+
+
+class AddFriendHandler(webapp2.RequestHandler):
+    def post(self):
+        print "i am adding friend "
+        pattern = self.request.get('query')
+        print "add friend query is ", pattern
+        people = User.query(User.user_id != '').fetch()
+
+        exist = False
+        if pattern:
+            for person in people:
+                if person.user_id == pattern:
+                    exist = True
+                    #add to my friend list
+
+        if not exist:
+            print "hellp"
 
 
 class TrendingHandler(webapp2.RequestHandler):
@@ -674,6 +796,8 @@ class CreateANewStreamHandler(webapp2.RequestHandler):
         print "inside create a new stream"
         data = json.loads(self.request.body)
         user = data['user_id']
+        longitude = data['longitude']
+        latitude = data['latitude']
         print user, ' is creating'
         new_stream = Stream(parent=ndb.Key('User', user),
                             stream_id=data['stream_id'],
@@ -685,6 +809,11 @@ class CreateANewStreamHandler(webapp2.RequestHandler):
                             last_add=str(datetime.now()),
                             owner=data['owner'],
                             )
+
+        if longitude == '' or latitude == '':
+            new_stream.geo_loc = ndb.GeoPt(randrange(-10,10),randrange(-10,10))
+        else:
+            new_stream.geo_loc = ndb.GeoPt(float(latitude), float(longitude))
 
         new_stream.put()
         result = json.dumps({'status': '0'})
@@ -838,6 +967,32 @@ class AutoCompleteHandler(webapp2.RequestHandler):
 
 
 ################################ FOR PHASE 3 Android PART #############################
+class AndroidCreateANewStreamHandler(webapp2.RequestHandler):
+    def post(self):
+        print "inside android create a new stream"
+        stream_id = self.request.get('stream_id')
+        user_id = self.request.get('user_id')
+        longitude = self.request.get('longitude')
+        latitude = self.request.get('latitude')
+        print user_id, ' is creating in android'
+        new_stream = Stream(parent=ndb.Key('User', user_id),
+                            stream_id=stream_id,
+                            user_id=user_id,
+                            views=0,
+                            num_images=0,
+                            last_add=str(datetime.now()),
+                            )
+
+        if longitude == '' or latitude == '':
+            new_stream.geo_loc = ndb.GeoPt(randrange(-10,10),randrange(-10,10))
+        else:
+            new_stream.geo_loc = ndb.GeoPt(float(latitude), float(longitude))
+
+        new_stream.put()
+        result = json.dumps({'status': '0'})
+        self.response.write(result)
+
+
 class AndroidViewAllStreamsHandler(webapp2.RequestHandler):
     def get(self):
         streams = Stream.query(Stream.stream_id != '').fetch()
@@ -965,12 +1120,14 @@ app = webapp2.WSGIApplication([
     ('/manage', ManageHandler),
     ('/create', CreateHandler),
     ('/view_single', ViewStreamHandler),
-    ('/view', ViewAllHandler),
+    ('/view_user', ViewUserHandler),
+    ('/view', ViewAllFriendHandler),
     ('/image', ViewImageHandler),
     ('/imageGeo', ViewImageObjectHandler),
     ('/search', SearchHandler),
     ('/trending', TrendingHandler),
     ('/error', ErrorHandler),
+    ('/add_friend', AddFriendHandler),
     ('/create_a_new_stream', CreateANewStreamHandler),
     ('/delete_a_stream', DeleteStreamHandler),
     ('/upload_image', UploadImageHandler),
@@ -984,4 +1141,5 @@ app = webapp2.WSGIApplication([
     ('/android/view_single_stream', AndroidViewStreamHandler),
     ('/android/upload_image', AndroidUploadImageHandler),
     ('/android/view_nearby', AndroidViewNearby),
+    ('/android/create_a_stream', AndroidCreateANewStreamHandler),
 ], debug=True)

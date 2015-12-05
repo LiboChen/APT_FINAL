@@ -15,6 +15,7 @@ class User(ndb.Model):
     nick_name = ndb.StringProperty()
     friends = ndb.StringProperty(repeated=True)
     streams = ndb.StringProperty(repeated=True)
+    photo = ndb.StringProperty()
 
 
 class Image(db.Model):
@@ -38,6 +39,7 @@ class Stream(ndb.Model):
     tags = ndb.StringProperty()
     view_queue = ndb.DateTimeProperty(repeated=True)
     mylock = threading.Lock()
+    geo_loc = ndb.GeoPtProperty()
     count = {}
     # def initialize(self, count):
     #     self.count = count
