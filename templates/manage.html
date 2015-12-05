@@ -2,10 +2,42 @@
 {% block content %}
 <form action="manage" method="post">
 
-<h3>Streams I own</h3>
-  <p>{{usr}}</p>
 
-<table class="table table-striped">
+<html>
+<head>
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//blueimp.github.io/Gallery/css/blueimp-gallery.min.css">
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+{#    <style type="text/css">#}
+{#        #container {width:1100px;}#}
+{#        img { width:200px; height:150px; margin: 0 10px; float:left;}#}
+{#    </style>#}
+</head>
+
+<body>
+<h3>My Places of Interest</h3>
+<br>
+{#<!--<div class="row">-->#}
+{##}
+{#    <!--{% for url in image_url %}-->#}
+{#        #}
+{#        <!--<div class="col-xs-6 col-md-3"><img src="{{ url }}" class="img-responsive"></div>-->#}
+{#    <!--{% endfor %}-->#}
+{#<!--</div>-->#}
+
+
+<div class="container">
+    {% for url in image_url %}
+        <span class="col-sm-4 col-xs-6">
+        <a href="/view_single?stream_id={{url[1]}}">
+           <img src="{{ url[0] }}" class = "img-thumbnail"/>
+            <h6>{{ url[1] }}</h6>
+        </a>
+        </span>
+    {% endfor %}
+</div>
+
+    <table class="table table-striped">
   <tr>
     <th>Name</th>
     <th>Last New Picture</th>
@@ -36,10 +68,6 @@
     </tr>
   {% endfor %}
 </table>
-
-<input type="submit" name="delete" value="Delete Checked">
-<input type="hidden" name="user_id" value="{{ user_id }}">
-</form>
 
 <form action="manage" method="post">
 <h3>Streams I subscribe to</h3>

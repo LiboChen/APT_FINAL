@@ -40,8 +40,8 @@ LAST_REPORT = None
 INDEX = 0
 INDEX1 = 2
 
-#SERVICES_URL = 'http://localhost:8080/'
-SERVICES_URL = 'http://apt-phase3.appspot.com/'
+#SERVICES_URL = 'http://localhost:8000/'
+SERVICES_URL = 'http://apt-final-project-test.appspot.com/'
 
 
 default_preface = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3DFxGhXSmn0MHjbEEtw-0N9sDKhyIP7tM_r3Wo1mY7WhY2xvZ"
@@ -51,8 +51,11 @@ JINJA_ENVIRONMENT = jinja2.Environment(
     autoescape=True)
 
 
-NAV_LINKS = sorted(('Create', 'View', 'Search', 'Trending', 'Manage'))
-NAV_LINKS = OrderedDict(zip(NAV_LINKS, map(lambda x: '/'+x.lower(), NAV_LINKS) ))
+#NAV_LINKS = sorted(('Create', 'View', 'Search', 'Trending', 'My Places of Interest'))
+#NAV_LINKS = OrderedDict(zip(NAV_LINKS, map(lambda x: '/'+x.lower(), NAV_LINKS) ))
+
+NAV_LINKS = {'Create': '/create', 'Friends': '/view', 'Search': '/search', 'Trending': '/trending',
+             'My Places of Interest': '/manage'}
 USER_NAV_LINKS = NAV_LINKS.copy()
 
 WEBSITE = 'https://blueimp.github.io/jQuery-File-Upload/'
@@ -164,6 +167,19 @@ class ManageHandler(webapp2.RequestHandler):
                 subscribed_streams.append(key.get())
 
         print subscribed_streams
+
+        streams = Stream.query(Stream.stream_id != '').fetch()
+        image_url = []
+        for stream in streams:
+            #print stream.stream_id
+            #print user
+            if stream.user_id == user:
+                if stream.cover_url:
+                    image_url.append([stream.cover_url, stream.stream_id])
+                else:
+                    image_url.append([default_preface, stream.stream_id])
+
+
         template_values = {
             'nav_links': USER_NAV_LINKS,
             'path': os.path.basename(self.request.path).capitalize(),
@@ -171,6 +187,7 @@ class ManageHandler(webapp2.RequestHandler):
             'user_streams': Stream.query(Stream.owner == str(user)).fetch(),
             'subscribed_streams': subscribed_streams,
             'usr': user,
+            'image_url': image_url,
         }
 
         # all_streams = Stream.query(Stream.stream_id != '').fetch()
@@ -189,7 +206,7 @@ class ManageHandler(webapp2.RequestHandler):
                 'user': str(users.get_current_user()).lower(),
                 }
 
-
+        print "creating post is activated"
         form_data = json.dumps(form)
         if self.request.get('delete'):
             result = urlfetch.fetch(payload=form_data, url=SERVICES_URL + 'delete_a_stream',
@@ -213,6 +230,7 @@ class CreateHandler(webapp2.RequestHandler):
         self.response.write(template.render(template_values))
 
     def post(self):
+        print 'creating stream now'
         user = str(users.get_current_user()).lower()
         stream_id = self.request.get('stream_id')
         print 'first', stream_id
@@ -240,9 +258,11 @@ class CreateHandler(webapp2.RequestHandler):
                 'views': 0,
                 }
 
+        print "aaaaaaa"
         form_data = json.dumps(form)
         result = urlfetch.fetch(payload=form_data, url=SERVICES_URL + 'create_a_new_stream',
                                 method=urlfetch.POST, headers={'Content-Type': 'application/json'})
+        print "bbbbbbb"
         self.redirect('/manage')
 
 
@@ -651,6 +671,7 @@ class ErrorHandler(webapp2.RequestHandler):
 #############################################################################################
 class CreateANewStreamHandler(webapp2.RequestHandler):
     def post(self):
+        print "inside create a new stream"
         data = json.loads(self.request.body)
         user = data['user_id']
         print user, ' is creating'
@@ -885,8 +906,8 @@ class AndroidViewStreamHandler(webapp2.RequestHandler):
 
 class AndroidViewNearby(webapp2.RequestHandler):
     def get(self):
-        target_long = self.request.get('longitude')
-        target_lat = self.request.get('latitude')
+        target_long = float(self.request.get('longitude'))
+        target_lat = float(self.request.get('latitude'))
         streams = Stream.query(Stream.stream_id != '').fetch()
         image_url = []
 
@@ -928,7 +949,7 @@ class AndroidUploadImageHandler(webapp2.RequestHandler):
                 if str_lon == "" or str_lat == "":
                     Stream.insert_with_lock(stream_id,image)
                 else:
-                    Stream.insert_with_lock(stream_id, image,True,float(str_lat),float(str_lon))
+                    Stream.insert_with_lock(stream_id, image,True,float(str_lat), float(str_lon))
 
         #         results.append({'name': '', 'url': '', 'type': '', 'size': 0})
         #

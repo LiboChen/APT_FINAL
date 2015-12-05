@@ -10,12 +10,20 @@ from datetime import datetime
 from random import randrange
 
 
+class User(ndb.Model):
+    user_id = ndb.StringProperty()
+    nick_name = ndb.StringProperty()
+    friends = ndb.StringProperty(repeated=True)
+    streams = ndb.StringProperty(repeated=True)
+
+
 class Image(db.Model):
     owner_id = db.StringProperty()
     image = db.BlobProperty()
     stream_id = db.StringProperty()
     upload_date = db.DateTimeProperty(auto_now_add=True)
     geo_loc = db.GeoPtProperty()
+
 
 class Stream(ndb.Model):
     # image_list = ndb.StringProperty(repeated=True)
