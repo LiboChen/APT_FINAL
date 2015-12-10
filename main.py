@@ -21,7 +21,7 @@ import urllib
 import re
 import logging
 
-from data_class import Stream, StreamInfo, ShowStream, Image, User
+from data_class import Stream, StreamInfo, ShowStream, Image, User, ChatRoom
 from datetime import datetime
 from google.appengine.api import users
 from google.appengine.api import images
@@ -154,8 +154,9 @@ class MainPage(webapp2.RequestHandler):
             if person.user_id == user:
                 exist = True
 
+
         if not exist:
-            new_user = User(user_id=user)
+            new_user = User(user_id=user, nick_name=user, description="The user has not added description")
             new_user.put()
         print "add user into user pool"
 
@@ -350,7 +351,7 @@ class ViewSingleHandler(webapp2.RequestHandler):
             'stream_id': stream_id,
         }
 
-        print "owner is ", template_values['owner']
+        print "lalala owner is ", template_values['owner']
         print "user is ", template_values['user']
         template = JINJA_ENVIRONMENT.get_template('viewstream.html')
         self.response.write(template.render(template_values))
@@ -454,8 +455,9 @@ class ViewStreamHandler(webapp2.RequestHandler):
             'mindate':mindate
         }
 
-        print "owner is ", template_values['owner']
-        print "user is ", template_values['user']
+        print "current owner is ", template_values['owner']
+        print "current user is ", template_values['user']
+
         template = JINJA_ENVIRONMENT.get_template('viewstream.html')
         self.response.write(template.render(template_values))
 
@@ -535,6 +537,7 @@ class ViewAllFriendHandler(webapp2.RequestHandler):
     def get(self):
         print 'showing friends'
         user = str(users.get_current_user()).lower()
+        print 'curent user is ', user
         cur_user = User.query(User.user_id == user).fetch()[0]
         image_url = []
         for friend in cur_user.friends:
@@ -695,24 +698,6 @@ class SearchHandler(webapp2.RequestHandler):
         print "searching "
         info = {'qry': self.request.get('query')}
         self.redirect('/search?'+urllib.urlencode(info))
-
-
-class AddFriendHandler(webapp2.RequestHandler):
-    def post(self):
-        print "i am adding friend "
-        pattern = self.request.get('query')
-        print "add friend query is ", pattern
-        people = User.query(User.user_id != '').fetch()
-
-        exist = False
-        if pattern:
-            for person in people:
-                if person.user_id == pattern:
-                    exist = True
-                    #add to my friend list
-
-        if not exist:
-            print "hellp"
 
 
 class TrendingHandler(webapp2.RequestHandler):
@@ -980,6 +965,7 @@ class AndroidCreateANewStreamHandler(webapp2.RequestHandler):
                             user_id=user_id,
                             views=0,
                             num_images=0,
+                            owner=user_id,
                             last_add=str(datetime.now()),
                             )
 
@@ -1106,12 +1092,110 @@ class AndroidUploadImageHandler(webapp2.RequestHandler):
                 else:
                     Stream.insert_with_lock(stream_id, image,True,float(str_lat), float(str_lon))
 
-        #         results.append({'name': '', 'url': '', 'type': '', 'size': 0})
-        #
-        # s = json.dumps({'files': results}, separators=(',', ':'))
-        # self.response.headers['Content-Type'] = 'application/json'
-        # # print "duming material is ", s
-        # return self.response.write(s)
+
+# class AndroidChatRoomHandler(webapp2.RequestHandler):
+#     def get(self):
+#         return
+
+
+class AndroidSendMessageHandler(webapp2.RequestHandler):
+    def post(self):
+        print 'sending message is called'
+        reg_id = self.request.get('reg_id')
+        message = self.request.get('message')
+        self.response.headers['Content-Type'] = 'text/html'
+        self.response.set_status(200, "OK")
+        self.response.out.write('<html>')
+        self.response.out.write('<head>')
+        self.response.out.write('<title>')
+        self.response.out.write('push')
+        self.response.out.write('</title>')
+        self.response.out.write('</head>')
+        self.response.out.write('<body>')
+        body_fields = {"data": {"message": message},
+                       "registration_ids": [reg_id]}
+
+        result = urlfetch.fetch(url="https://android.googleapis.com/gcm/send",
+                                payload=json.dumps(body_fields),
+                                method=urlfetch.POST,
+                                headers={'Content-Type': 'application/json', 'Authorization': 'key= AIzaSyDSgiFzN6qlOgQZcRZ2z_dPmlJ1bBJd6UM'})
+
+        print 'result content is', result.content
+        self.response.out.write('Server response, status,' + result.content)
+        self.response.out.write('</body>')
+        self.response.out.write('</html>')
+
+
+class AndroidViewFriendsHandler(webapp2.RequestHandler):
+    def get(self):
+        print "in android view friend handler"
+        user = self.request.get('user_id')
+        person = User.query(User.user_id == user).fetch()[0]
+
+        friend_photos = []
+        friend_names = []
+
+        print "friend information is", person.friends
+        for friend in person.friends:
+            query_result = User.query(User.user_id == friend).fetch()
+            #print "friend information is", query_result
+            if len(query_result) > 0:
+                friend_obj = query_result[0]
+                if friend_obj.photo:
+                    friend_photos.append(friend_obj.photo)
+                else:
+                    friend_photos.append(default_photo)
+                friend_names.append(friend_obj.user_id)
+
+        print "friend name is", friend_names
+        print "friend photo is", friend_photos
+        dict_passed = {'friendPhotos': friend_photos, 'friendNames': friend_names}
+        json_obj = json.dumps(dict_passed, sort_keys=True, indent=4, separators=(',', ': '))
+        self.response.write(json_obj)
+
+
+class AndroidViewProfileHandler(webapp2.RequestHandler):
+    def get(self):
+        print "in android view profile handler"
+        user = self.request.get('user_id')
+        print "user is ", user
+        query_user = self.request.get('query_id')
+        print "query user is ", query_user
+        # person = User.query(User.user_id == query_user).fetch()[0]
+        # person.nick_name = query_user
+        # person.description = "The user has not added description"
+        # person.photo = default_photo
+        # person.put()
+        person = User.query(User.user_id == query_user).fetch()[0]
+        is_self = (user == query_user)
+        name = person.nick_name
+        description = person.description
+        photo = person.photo
+
+        print "is_self is ", is_self
+        print "name is ", name
+        print 'description is ', description
+        print 'photo is ', photo
+
+        dict_passed = {'photo': photo, 'name': name, 'description': description, 'isSelf': is_self}
+        json_obj = json.dumps(dict_passed, sort_keys=True, indent=4, separators=(',', ': '))
+        self.response.write(json_obj)
+
+
+class AndroidEditProfileHandler(webapp2.RequestHandler):
+    def get(self):
+        print "in edit profile handler"
+        user = self.request.get('user_id')
+        person = User.query(User.user_id == user).fetch()[0]
+
+        if self.request.get('description'):
+            person.description = self.request.get('description')
+        if self.request.get('nick_name'):
+            person.nick_name = self.request.get('nick_name')
+
+        print "after changing, nick name is", person.nick_name
+        print "after changing, description is", person.description
+        person.put()
 
 
 app = webapp2.WSGIApplication([
@@ -1127,7 +1211,6 @@ app = webapp2.WSGIApplication([
     ('/search', SearchHandler),
     ('/trending', TrendingHandler),
     ('/error', ErrorHandler),
-    ('/add_friend', AddFriendHandler),
     ('/create_a_new_stream', CreateANewStreamHandler),
     ('/delete_a_stream', DeleteStreamHandler),
     ('/upload_image', UploadImageHandler),
@@ -1142,4 +1225,8 @@ app = webapp2.WSGIApplication([
     ('/android/upload_image', AndroidUploadImageHandler),
     ('/android/view_nearby', AndroidViewNearby),
     ('/android/create_a_stream', AndroidCreateANewStreamHandler),
+    ('/android/send_message', AndroidSendMessageHandler),
+    ('/android/view_friends', AndroidViewFriendsHandler),
+    ('/android/view_profile', AndroidViewProfileHandler),
+    ('/android/edit_profile', AndroidEditProfileHandler),
 ], debug=True)

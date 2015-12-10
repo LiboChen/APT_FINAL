@@ -16,6 +16,14 @@ class User(ndb.Model):
     friends = ndb.StringProperty(repeated=True)
     streams = ndb.StringProperty(repeated=True)
     photo = ndb.StringProperty()
+    description = ndb.StringProperty()
+
+
+class ChatRoom(ndb.Model):
+    members = ndb.StringProperty(repeated=True)
+    normalized_longitude = ndb.IntegerProperty()
+    normalized_latitude = ndb.IntegerProperty()
+    messages = ndb.StringProperty(repeated=True)
 
 
 class Image(db.Model):
@@ -27,7 +35,6 @@ class Image(db.Model):
 
 
 class Stream(ndb.Model):
-    # image_list = ndb.StringProperty(repeated=True)
     owner = ndb.StringProperty()       #used to solve can't see others problem
     stream_id = ndb.StringProperty()
     user_id = ndb.StringProperty()
