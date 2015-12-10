@@ -39,6 +39,7 @@ class Stream(ndb.Model):
     stream_id = ndb.StringProperty()
     user_id = ndb.StringProperty()
     last_add = ndb.StringProperty()
+    information = ndb.StringProperty()
     views = ndb.IntegerProperty()
     num_images = ndb.IntegerProperty()
     cover_url = ndb.StringProperty()

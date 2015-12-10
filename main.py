@@ -1172,12 +1172,27 @@ class AndroidViewProfileHandler(webapp2.RequestHandler):
         description = person.description
         photo = person.photo
 
+        stream_info = []
+        stream_name = []
+        stream_cover = []
+
+        streams = Stream.query_stream(ndb.Key('User', query_user)).fetch()
+        print "streams size is ", len(streams)
+        if len(streams) > 0:
+            for s in streams:
+                stream_info.append(s.information)
+                stream_name.append(s.stream_id)
+                if s.cover_url:
+                    stream_cover.append(s.cover_url)
+                else:
+                    stream_cover.append(default_preface)
         print "is_self is ", is_self
         print "name is ", name
         print 'description is ', description
         print 'photo is ', photo
 
-        dict_passed = {'photo': photo, 'name': name, 'description': description, 'isSelf': is_self}
+        dict_passed = {'photo': photo, 'name': name, 'description': description, 'isSelf': is_self, 'streamNames': stream_name
+                       , 'streamInfos': stream_info, 'streamCovers': stream_cover}
         json_obj = json.dumps(dict_passed, sort_keys=True, indent=4, separators=(',', ': '))
         self.response.write(json_obj)
 
