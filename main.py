@@ -1213,6 +1213,39 @@ class AndroidEditProfileHandler(webapp2.RequestHandler):
         person.put()
 
 
+class AndroidAddFriendHandler(webapp2.RequestHandler):
+    def get(self):
+        print "in add friend handler"
+        user = self.request.get('user_id')
+        friend_name = self.request.get('friend_name')
+
+        person = User.query(User.user_id == user).fetch()[0]
+
+        valid = False
+        valid_users = User.query(User.user_id != '').fetch()
+
+        for valid_user in valid_users:
+            if valid_user == friend_name:
+                valid = True
+
+        existed = False
+        if valid is True:
+            for existing_friend in person.friends:
+                if existing_friend == friend_name:
+                    existed = True
+                    break
+
+            if existed:
+                print "he is already your friend"
+            else:
+                print "successfully add him"
+                person.friends.append(friend_name)
+        else:
+            print "doesn't exist such person"
+        
+        person.put()
+
+
 app = webapp2.WSGIApplication([
     ('/', MainPage),
     ('/login', LoginHandler),
@@ -1244,4 +1277,5 @@ app = webapp2.WSGIApplication([
     ('/android/view_friends', AndroidViewFriendsHandler),
     ('/android/view_profile', AndroidViewProfileHandler),
     ('/android/edit_profile', AndroidEditProfileHandler),
+    ('/android/add_friend', AndroidAddFriendHandler),
 ], debug=True)
