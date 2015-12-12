@@ -21,7 +21,7 @@ import urllib
 import re
 import logging
 
-from data_class import Stream, StreamInfo, ShowStream, Image, User, ChatRoom
+from data_class import Stream, StreamInfo, ShowStream, Image, User, ChatRoom, TwoChatRoom
 from datetime import datetime
 from google.appengine.api import users
 from google.appengine.api import images
@@ -986,6 +986,7 @@ class AndroidViewAllStreamsHandler(webapp2.RequestHandler):
         stream_url = []
         stream_ids = []
         for stream in streams:
+            print stream.stream_id, "has geo location of ", stream.geo_loc
             stream_ids.append(stream.stream_id)
             if stream.cover_url:
                 stream_url.append(stream.cover_url)
@@ -1097,12 +1098,61 @@ class AndroidUploadImageHandler(webapp2.RequestHandler):
 #     def get(self):
 #         return
 
+reg_id1 = "APA91bFxdwUP7gRcuC03Dcb8gihUHi2u4CKeXPzr44MdPI4x3yQ2Ed-Y88RUNSK4IDmXRwvOLAwfGaFJI7C_XVczeWQbaG18LV3SmmjI_KldHgurkFfDIaMwH9ipx8CPHLECRBSYoAFv"
+reg_id2 = "APA91bHfBD8uWLZBneuUwO-lFKOzuKtSX_69K63_8oLpuGMaSSKSvqLoHJfqdeESdoTSVxjlIx2fK1MUkqCDcs0p4_Rl20E3GMCpHvuxgNwShobYiYaOINmUx1HJM2NGoyovbQfEeRqp"
+
+
+class AndroidRegisterHandler(webapp2.RequestHandler):
+    def post(self):
+        reg_id = self.request.get('reg_id')
+        user_id = self.request.get('user_id')
+
+        user = User.query(User.user_id == user_id).fetch()[0]
+
+        user.reg_id = reg_id
+        print user_id, " has reg id: ", user.reg_id
+        user.put()
+
 
 class AndroidSendMessageHandler(webapp2.RequestHandler):
     def post(self):
         print 'sending message is called'
-        reg_id = self.request.get('reg_id')
+#        reg_id = self.request.get('reg_id')
         message = self.request.get('message')
+        sender = self.request.get('user_id')
+        receiver = self.request.get('receiver')
+        print "sender is, ", sender
+        print "receiver is ", receiver
+
+        #get current message:
+        cur_message = sender + ": " + message
+
+        #get chatroom information
+        if sender < receiver:
+            query_key = sender + "#" + receiver
+        else:
+            query_key = receiver + "#" + sender
+
+        rooms = TwoChatRoom.query(TwoChatRoom.member_key == query_key).fetch()
+
+        if len(rooms) > 0:
+            room = rooms[0]
+        else:
+            room = TwoChatRoom(member_key=query_key)
+
+        room.messages.append(cur_message)
+
+        #get total_message
+        total_message = ""
+        for m in room.messages:
+            total_message += m + "#"
+        total_message = total_message[: -1]
+        room.put()
+
+        #get reg_id
+        user = User.query(User.user_id == receiver).fetch()[0]
+        reg_id = user.reg_id
+
         self.response.headers['Content-Type'] = 'text/html'
         self.response.set_status(200, "OK")
         self.response.out.write('<html>')
@@ -1112,7 +1162,7 @@ class AndroidSendMessageHandler(webapp2.RequestHandler):
         self.response.out.write('</title>')
         self.response.out.write('</head>')
         self.response.out.write('<body>')
-        body_fields = {"data": {"message": message},
+        body_fields = {"data": {"message": total_message},
                        "registration_ids": [reg_id]}
 
         result = urlfetch.fetch(url="https://android.googleapis.com/gcm/send",
@@ -1170,7 +1220,10 @@ class AndroidViewProfileHandler(webapp2.RequestHandler):
         is_self = (user == query_user)
         name = person.nick_name
         description = person.description
-        photo = person.photo
+        if person.photo:
+            photo = person.photo
+        else:
+            photo = default_photo
 
         stream_info = []
         stream_name = []
@@ -1224,8 +1277,9 @@ class AndroidAddFriendHandler(webapp2.RequestHandler):
         valid = False
         valid_users = User.query(User.user_id != '').fetch()
 
+        print "valid users are", valid_users
         for valid_user in valid_users:
-            if valid_user == friend_name:
+            if valid_user.user_id == friend_name:
                 valid = True
 
         existed = False
@@ -1242,7 +1296,7 @@ class AndroidAddFriendHandler(webapp2.RequestHandler):
                 person.friends.append(friend_name)
         else:
             print "doesn't exist such person"
-        
+
         person.put()
 
 
@@ -1278,4 +1332,5 @@ app = webapp2.WSGIApplication([
     ('/android/view_profile', AndroidViewProfileHandler),
     ('/android/edit_profile', AndroidEditProfileHandler),
     ('/android/add_friend', AndroidAddFriendHandler),
+    ('/android/register', AndroidRegisterHandler),
 ], debug=True)

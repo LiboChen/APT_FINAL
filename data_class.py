@@ -17,12 +17,18 @@ class User(ndb.Model):
     streams = ndb.StringProperty(repeated=True)
     photo = ndb.StringProperty()
     description = ndb.StringProperty()
+    reg_id = ndb.StringProperty()
 
 
 class ChatRoom(ndb.Model):
     members = ndb.StringProperty(repeated=True)
     normalized_longitude = ndb.IntegerProperty()
     normalized_latitude = ndb.IntegerProperty()
+    messages = ndb.StringProperty(repeated=True)
+
+
+class TwoChatRoom(ndb.Model):
+    member_key = ndb.StringProperty()
     messages = ndb.StringProperty(repeated=True)
 
 
