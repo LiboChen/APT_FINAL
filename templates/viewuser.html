@@ -36,7 +36,7 @@
         </span>
     {% endfor %}
 </div>
-
+<form action="manage" method="post">
     <table class="table table-striped">
   <tr>
     <th>Name</th>
@@ -68,6 +68,11 @@
     </tr>
   {% endfor %}
 </table>
+
+<input type="submit" name="delete" value="Delete Checked">
+<input type="hidden" name="user_id" value="{{ user_id }}">
+</form>
+
 
 <form action="manage" method="post">
 <h3>Streams I subscribe to</h3>

@@ -1030,18 +1030,19 @@ class AndroidViewStreamHandler(webapp2.RequestHandler):
             d["long"] = str(image.geo_loc.lon)
             image_url.append(d)
 
-        #calculate hasSub
-        qry = StreamInfo.query_stream(ndb.Key('User', str(user))).fetch()
-        has_sub = False
-        if len(qry) == 0:
-            has_sub = False
-        else:
-            for key in qry[0].subscribed:
-                if key.get().stream_id == stream_id:
-                    has_sub = True
-                    break
+        # #calculate hasSub
+        # qry = StreamInfo.query_stream(ndb.Key('User', str(user))).fetch()
+        # has_sub = False
+        # if len(qry) == 0:
+        #     has_sub = False
+        # else:
+        #     for key in qry[0].subscribed:
+        #         if key.get().stream_id == stream_id:
+        #             has_sub = True
+        #             break
 
-        dict_passed = {'displayImages': image_url, 'myOwn': my_own, 'hasSub': has_sub}
+        # dict_passed = {'displayImages': image_url, 'myOwn': my_own, 'hasSub': has_sub}
+        dict_passed = {'displayImages': image_url, 'myOwn': my_own}
         json_obj = json.dumps(dict_passed, sort_keys=True, indent=4, separators=(',', ': '))
         self.response.write(json_obj)
 
@@ -1125,7 +1126,17 @@ class AndroidSendMessageHandler(webapp2.RequestHandler):
         print "receiver is ", receiver
 
         #get current message:
-        cur_message = sender + ": " + message
+        cur_message = sender + "$" + message
+
+        #encode sender url and receiver url into message
+        sender_person = User.query(User.user_id == sender).fetch()[0]
+        cur_message = cur_message + "$" + sender_person.photo
+        print "append sender url is ", sender_person.photo
+        receiver_person = User.query(User.user_id == receiver).fetch()[0]
+        cur_message = cur_message + "$" + receiver_person.photo
+        print "append receiver url is ", receiver_person.photo
+
+        print "current message is ", cur_message
 
         #get chatroom information
         if sender < receiver:
@@ -1140,13 +1151,16 @@ class AndroidSendMessageHandler(webapp2.RequestHandler):
         else:
             room = TwoChatRoom(member_key=query_key)
 
+        #room.messages[:] = []
         room.messages.append(cur_message)
+
 
         #get total_message
         total_message = ""
-        for m in room.messages:
+        for m in room.messages[-5:]:
             total_message += m + "#"
-        total_message = total_message[: -1]
+        #encode sender infomation
+        total_message = total_message + sender
         room.put()
 
         #get reg_id
@@ -1206,6 +1220,11 @@ class AndroidViewFriendsHandler(webapp2.RequestHandler):
 
 class AndroidViewProfileHandler(webapp2.RequestHandler):
     def get(self):
+        #trick part, set paul photo
+        # test_user = User.query(User.user_id == "paulxiaodan").fetch()[0]
+        # test_user.photo = "https://scontent.xx.fbcdn.net/hphotos-xat1/v/t1.0-9/1456642_1715791265307692_1385966297756365690_n.jpg?oh=ed6a9a652f8071ab6dbafde698abec99&oe=56E26E5F"
+        # test_user.put()
+
         print "in android view profile handler"
         user = self.request.get('user_id')
         print "user is ", user
@@ -1255,15 +1274,36 @@ class AndroidEditProfileHandler(webapp2.RequestHandler):
         print "in edit profile handler"
         user = self.request.get('user_id')
         person = User.query(User.user_id == user).fetch()[0]
+        print "passing photo url is ", self.request.get('photo_url')
 
         if self.request.get('description'):
             person.description = self.request.get('description')
         if self.request.get('nick_name'):
             person.nick_name = self.request.get('nick_name')
+        if self.request.get('photo_url'):
+            person.photo = self.request.get('photo_url')
 
+        print "after changing, photo is ", person.photo
         print "after changing, nick name is", person.nick_name
         print "after changing, description is", person.description
         person.put()
+
+
+class AndroidEditPOIHandler(webapp2.RequestHandler):
+    def get(self):
+        print "in edit POI handler"
+        stream_id = self.request.get('stream_id')
+        stream = Stream.query(Stream.stream_id == stream_id).fetch()[0]
+        print "passing photo url is ", self.request.get('photo_url')
+
+        if self.request.get('description'):
+            stream.information = self.request.get('description')
+        if self.request.get('photo_url'):
+            stream.cover_url = self.request.get('photo_url')
+
+        print "after changing, photo is ", stream.cover_url
+        print "after changing, description is", stream.information
+        stream.put()
 
 
 class AndroidAddFriendHandler(webapp2.RequestHandler):
@@ -1331,6 +1371,7 @@ app = webapp2.WSGIApplication([
     ('/android/view_friends', AndroidViewFriendsHandler),
     ('/android/view_profile', AndroidViewProfileHandler),
     ('/android/edit_profile', AndroidEditProfileHandler),
+    ('/android/edit_POI', AndroidEditPOIHandler),
     ('/android/add_friend', AndroidAddFriendHandler),
     ('/android/register', AndroidRegisterHandler),
 ], debug=True)
