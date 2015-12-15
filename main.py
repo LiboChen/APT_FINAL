@@ -429,26 +429,28 @@ class ViewStreamHandler(webapp2.RequestHandler):
             counter += 1
 
         #calculate hasSub
-        qry = StreamInfo.query_stream(ndb.Key('User', str(user))).fetch()
-        has_sub = False
-        if len(qry) == 0:
-            has_sub = False
-        else:
-            for key in qry[0].subscribed:
-                if key.get().stream_id == stream_id:
-                    has_sub = True
-                    break
+        # qry = StreamInfo.query_stream(ndb.Key('User', str(user))).fetch()
+        # has_sub = False
+        # if len(qry) == 0:
+        #     has_sub = False
+        # else:
+        #     for key in qry[0].subscribed:
+        #         if key.get().stream_id == stream_id:
+        #             has_sub = True
+        #             break
+
         upload_url = ''
         template_values = {
             'nav_links': USER_NAV_LINKS,
             'path': os.path.basename(self.request.path).capitalize(),
             'owner': owner,         #the owner of the stream
-            'user': str(users.get_current_user()).lower(),   #current user
+            # 'user': str(users.get_current_user()).lower(),   #current user
+            'user': owner,
             'upload_url': upload_url,
             'image_url': image_url,
             'hidden_image':hidden_image,
             'has_image': has_image,
-            'hasSub': has_sub,
+            'hasSub': False,
             'stream_id': stream_id,
             'has_hidden':has_hidden,
             'maxdate':maxdate,
@@ -1047,31 +1049,65 @@ class AndroidViewStreamHandler(webapp2.RequestHandler):
         self.response.write(json_obj)
 
 
+# class AndroidViewNearby(webapp2.RequestHandler):
+#     def get(self):
+#         target_long = float(self.request.get('longitude'))
+#         target_lat = float(self.request.get('latitude'))
+#         streams = Stream.query(Stream.stream_id != '').fetch()
+#         image_url = []
+#
+#         for stream in streams:
+#             image_query = db.GqlQuery("SELECT *FROM Image WHERE ANCESTOR IS :1 ORDER BY upload_date DESC",
+#                                       db.Key.from_path('Stream', stream.stream_id))
+#
+#             for image in image_query[0:stream.num_images]:
+#                 d = dict()
+#                 d["url"] = SERVICES_URL + "image?image_id=" + str(image.key())
+#                 d["stream_id"] = stream.stream_id
+#                 d["long"] = image.geo_loc.lon
+#                 d["lat"] = image.geo_loc.lat
+#                 image_url.append(d)
+#
+#         mycmp = lambda a, b: 1 if ((target_long - a["long"]) * (target_long - a["long"]) +
+#                                    (target_lat - a["lat"]) * (target_lat - a["lat"]) -
+#                                    (target_long - b["long"]) * (target_long - b["long"]) -
+#                                    (target_lat - b["lat"]) * (target_lat - b["lat"])) > 0 else -1
+#
+#         image_url.sort(mycmp)
+#         dict_passed = {'displayImages': image_url}
+#         json_obj = json.dumps(dict_passed, sort_keys=True, indent=4, separators=(',', ': '))
+#         self.response.write(json_obj)
+
+
 class AndroidViewNearby(webapp2.RequestHandler):
     def get(self):
         target_long = float(self.request.get('longitude'))
         target_lat = float(self.request.get('latitude'))
         streams = Stream.query(Stream.stream_id != '').fetch()
-        image_url = []
+        result = []
 
         for stream in streams:
-            image_query = db.GqlQuery("SELECT *FROM Image WHERE ANCESTOR IS :1 ORDER BY upload_date DESC",
-                                      db.Key.from_path('Stream', stream.stream_id))
+            print stream
 
-            for image in image_query[0:stream.num_images]:
-                d = dict()
-                d["url"] = SERVICES_URL + "image?image_id=" + str(image.key())
-                d["stream_id"] = stream.stream_id
-                d["long"] = image.geo_loc.lon
-                d["lat"] = image.geo_loc.lat
-                image_url.append(d)
+        for stream in streams:
+            d = dict()
+            if stream.cover_url:
+                d["url"] = stream.cover_url
+            else:
+                d["url"] = default_preface
+            d["stream_id"] = stream.stream_id
+            d["long"] = stream.geo_loc.lon
+            d["lat"] = stream.geo_loc.lat
+            d["description"] = stream.information
+            result.append(d)
 
-        mycmp = lambda a, b: ((target_long - a["long"]) * (target_long - a["long"]) +
-                              (target_lat - a["lat"]) * (target_lat - a["lat"]) -
-                              (target_long - b["long"]) * (target_long - b["long"]) -
-                              (target_lat - b["lat"]) * (target_lat - b["lat"]))
-        image_url.sort(mycmp)
-        dict_passed = {'displayImages': image_url}
+        mycmp = lambda a, b: 1 if ((target_long - a["long"]) * (target_long - a["long"]) +
+                                   (target_lat - a["lat"]) * (target_lat - a["lat"]) -
+                                   (target_long - b["long"]) * (target_long - b["long"]) -
+                                   (target_lat - b["lat"]) * (target_lat - b["lat"])) > 0 else -1
+
+        result.sort(mycmp)
+        dict_passed = {'displayImages': result}
         json_obj = json.dumps(dict_passed, sort_keys=True, indent=4, separators=(',', ': '))
         self.response.write(json_obj)
 
@@ -1130,6 +1166,7 @@ class AndroidSendMessageHandler(webapp2.RequestHandler):
 
         #encode sender url and receiver url into message
         sender_person = User.query(User.user_id == sender).fetch()[0]
+        print "sender photo is ", sender_person.photo
         cur_message = cur_message + "$" + sender_person.photo
         print "append sender url is ", sender_person.photo
         receiver_person = User.query(User.user_id == receiver).fetch()[0]
@@ -1221,9 +1258,44 @@ class AndroidViewFriendsHandler(webapp2.RequestHandler):
 class AndroidViewProfileHandler(webapp2.RequestHandler):
     def get(self):
         #trick part, set paul photo
-        # test_user = User.query(User.user_id == "paulxiaodan").fetch()[0]
-        # test_user.photo = "https://scontent.xx.fbcdn.net/hphotos-xat1/v/t1.0-9/1456642_1715791265307692_1385966297756365690_n.jpg?oh=ed6a9a652f8071ab6dbafde698abec99&oe=56E26E5F"
+        # test_user = User.query(User.user_id == "zouzhiyuanzju").fetch()[0]
+        # test_user.photo = default_photo
         # test_user.put()
+
+        #trick_part, delete useless streams
+        # test_streams = Stream.query(Stream.stream_id != '').fetch()
+        #
+        # data = ["yellow stone", "UT campus", "ut"]
+        # for stream in test_streams:
+        #     stream_id = stream.stream_id
+        #     if stream_id in data:
+        #         qry = Stream.query(Stream.stream_id == stream_id).fetch()
+        #         if len(qry) > 0:
+        #             #delete all the images in this stream
+        #             image_query = db.GqlQuery("SELECT *FROM Image WHERE ANCESTOR IS :1 ORDER BY upload_date DESC",
+        #                                       db.Key.from_path('Stream', stream_id))
+        #             for image in image_query[0:qry[0].num_images]:
+        #                 image.delete()
+        #                 print "******************delete images"
+        #
+        #             Stream.reset_image_num(qry[0].stream_id)
+        #             #delete stream
+        #             qry[0].key.delete()
+
+
+        #trick part add user
+        # new_user = User(user_id="yangxuanemail")
+        # new_user.put()
+
+        # test_stream = Stream.query(Stream.stream_id == "Starbucks").fetch()[0]
+        # test_stream.cover_url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3CXbdK-MVvEYHmV1xQPOmdYUih7jBQBhwI9z62Duex9Ke5KHZ"
+        # test_stream.put()
+
+
+        #test users
+        test_users = User.query(User.user_id != '').fetch()
+        for test_user in test_users:
+            print test_user.user_id, " register id is", test_user.reg_id
 
         print "in android view profile handler"
         user = self.request.get('user_id')
@@ -1340,6 +1412,15 @@ class AndroidAddFriendHandler(webapp2.RequestHandler):
         person.put()
 
 
+class AndroidCreateANewUserHandler(webapp2.RequestHandler):
+    def post(self):
+        user_id = self.request.get('user_id')
+        users_found = User.query(User.user_id == user_id).fetch()
+        if len(users_found) == 0:
+            new_user = User(user_id=user_id, photo=default_photo)
+            new_user.put()
+
+
 app = webapp2.WSGIApplication([
     ('/', MainPage),
     ('/login', LoginHandler),
@@ -1374,4 +1455,5 @@ app = webapp2.WSGIApplication([
     ('/android/edit_POI', AndroidEditPOIHandler),
     ('/android/add_friend', AndroidAddFriendHandler),
     ('/android/register', AndroidRegisterHandler),
+    ('/android/create_a_user', AndroidCreateANewUserHandler),
 ], debug=True)
